@@ -1,0 +1,106 @@
+[Buildset]
+BuildItems=@Variant(\x00\x00\x00\t\x00\x00\x00\x00\x03\x00\x00\x00\x0b\x00\x00\x00\x00\x02\x00\x00\x00\x06\x00s\x00r\x00c\x00\x00\x00\n\x00c\x00l\x00e\x00a\x00n\x00\x00\x00\x0b\x00\x00\x00\x00\x02\x00\x00\x00\x06\x00s\x00r\x00c\x00\x00\x00\n\x00d\x00e\x00b\x00u\x00g\x00\x00\x00\x0b\x00\x00\x00\x00\x02\x00\x00\x00\x06\x00s\x00r\x00c\x00\x00\x00\x06\x00a\x00l\x00l)
+
+[CustomDefinesAndIncludes][ProjectPath0]
+Defines=\x00\x00\x00\x00
+Includes=\x00\x00\x00\x00
+Path=.
+
+[Defines And Includes][Compiler]
+Name=GCC
+Path=gcc
+Type=GCC
+
+[Launch]
+Launch Configurations=Launch Configuration 0,Launch Configuration 1,Launch Configuration 2,Launch Configuration 3
+
+[Launch][Launch Configuration 0]
+Configured Launch Modes=execute
+Configured Launchers=nativeAppLauncher
+Name=simul-debug
+Type=Native Application
+
+[Launch][Launch Configuration 0][Data]
+Arguments=
+Debugger Shell=
+Dependencies=@Variant(\x00\x00\x00\t\x00\x00\x00\x00\x03\x00\x00\x00\x0b\x00\x00\x00\x00\x02\x00\x00\x00\x06\x00s\x00r\x00c\x00\x00\x00\n\x00c\x00l\x00e\x00a\x00n\x00\x00\x00\x0b\x00\x00\x00\x00\x02\x00\x00\x00\x06\x00s\x00r\x00c\x00\x00\x00\n\x00d\x00e\x00b\x00u\x00g\x00\x00\x00\x0b\x00\x00\x00\x00\x02\x00\x00\x00\x06\x00s\x00r\x00c\x00\x00\x00\x06\x00a\x00l\x00l)
+Dependency Action=Build
+Display Demangle Names=true
+Display Static Members=true
+EnvironmentGroup=default
+Executable=file:///home/cl/programming/cruiseControl/avr/src/adapter.obj
+External Terminal=konsole --noclose --workdir %workdir -e %exe
+GDB Path=file:///home/cl/programming/cruiseControl/avr/src/avr-gdb.sh
+Project Target=
+Remote GDB Config Script=file:///home/cl/programming/cruiseControl/avr/src/gdbinit
+Remote GDB Run Script=
+Remote GDB Shell Script=
+Start With=GdbConsole
+Use External Terminal=false
+Working Directory=
+isExecutable=true
+
+[Launch][Launch Configuration 1]
+Configured Launch Modes=execute
+Configured Launchers=nativeAppLauncher
+Name=simul
+Type=Native Application
+
+[Launch][Launch Configuration 1][Data]
+Arguments=-m atmega328 -f 8000000 adapter.obj
+Debugger Shell=
+Dependencies=@Variant(\x00\x00\x00\t\x00\x00\x00\x00\x03\x00\x00\x00\x0b\x00\x00\x00\x00\x02\x00\x00\x00\x06\x00s\x00r\x00c\x00\x00\x00\n\x00c\x00l\x00e\x00a\x00n\x00\x00\x00\x0b\x00\x00\x00\x00\x02\x00\x00\x00\x06\x00s\x00r\x00c\x00\x00\x00\x0e\x00r\x00e\x00l\x00e\x00a\x00s\x00e\x00\x00\x00\x0b\x00\x00\x00\x00\x02\x00\x00\x00\x06\x00s\x00r\x00c\x00\x00\x00\x06\x00a\x00l\x00l)
+Dependency Action=Build
+Display Demangle Names=true
+Display Static Members=false
+EnvironmentGroup=default
+Executable=file:///usr/bin/simavr
+External Terminal=konsole --noclose --workdir %workdir -e %exe
+GDB Path=
+Project Target=
+Remote GDB Config Script=
+Remote GDB Run Script=
+Remote GDB Shell Script=
+Start With=ApplicationOutput
+Use External Terminal=true
+Working Directory=
+isExecutable=true
+
+[Launch][Launch Configuration 2]
+Configured Launch Modes=execute
+Configured Launchers=nativeAppLauncher
+Name=flash
+Type=Native Application
+
+[Launch][Launch Configuration 2][Data]
+Arguments=
+Dependencies=@Variant(\x00\x00\x00\t\x00\x00\x00\x00\x04\x00\x00\x00\x0b\x00\x00\x00\x00\x02\x00\x00\x00\x06\x00s\x00r\x00c\x00\x00\x00\n\x00c\x00l\x00e\x00a\x00n\x00\x00\x00\x0b\x00\x00\x00\x00\x02\x00\x00\x00\x06\x00s\x00r\x00c\x00\x00\x00\x0e\x00r\x00e\x00l\x00e\x00a\x00s\x00e\x00\x00\x00\x0b\x00\x00\x00\x00\x02\x00\x00\x00\x06\x00s\x00r\x00c\x00\x00\x00\x06\x00a\x00l\x00l\x00\x00\x00\x0b\x00\x00\x00\x00\x02\x00\x00\x00\x06\x00s\x00r\x00c\x00\x00\x00\n\x00f\x00l\x00a\x00s\x00h)
+Dependency Action=Install
+EnvironmentGroup=default
+Executable=file:///home/cl/programming/cruiseControl/avr/src/adapter.obj
+External Terminal=konsole --noclose --workdir %workdir -e %exe
+Project Target=
+Use External Terminal=false
+Working Directory=
+isExecutable=true
+
+[Launch][Launch Configuration 3]
+Configured Launch Modes=execute
+Configured Launchers=nativeAppLauncher
+Name=flash flashEep
+Type=Native Application
+
+[Launch][Launch Configuration 3][Data]
+Arguments=
+Dependencies=@Variant(\x00\x00\x00\t\x00\x00\x00\x00\x05\x00\x00\x00\x0b\x00\x00\x00\x00\x02\x00\x00\x00\x06\x00s\x00r\x00c\x00\x00\x00\n\x00c\x00l\x00e\x00a\x00n\x00\x00\x00\x0b\x00\x00\x00\x00\x02\x00\x00\x00\x06\x00s\x00r\x00c\x00\x00\x00\x0e\x00r\x00e\x00l\x00e\x00a\x00s\x00e\x00\x00\x00\x0b\x00\x00\x00\x00\x02\x00\x00\x00\x06\x00s\x00r\x00c\x00\x00\x00\x06\x00a\x00l\x00l\x00\x00\x00\x0b\x00\x00\x00\x00\x02\x00\x00\x00\x06\x00s\x00r\x00c\x00\x00\x00\n\x00f\x00l\x00a\x00s\x00h\x00\x00\x00\x0b\x00\x00\x00\x00\x02\x00\x00\x00\x06\x00s\x00r\x00c\x00\x00\x00\x10\x00f\x00l\x00a\x00s\x00h\x00E\x00e\x00p)
+Dependency Action=Install
+EnvironmentGroup=default
+Executable=file:///home/cl/programming/cruiseControl/avr/src/adapter.obj
+External Terminal=konsole --noclose --workdir %workdir -e %exe
+Project Target=
+Use External Terminal=false
+Working Directory=
+isExecutable=true
+
+[Project]
+VersionControlSupport=kdevgit

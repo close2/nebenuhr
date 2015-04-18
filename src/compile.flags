@@ -1,0 +1,2 @@
+CFLAGS = -g -gdwarf-2 -I ../libcl -Os -Wall -Wno-unused-function -mcall-prologues -mmcu=atmega328
+CXXFLAGS = -g -gdwarf-2 -I ../libcl -Os -Wall -Wno-unused-function -mcall-prologues -mmcu=atmega328 -fno-threadsafe-statics -std=c++11 -fwhole-program

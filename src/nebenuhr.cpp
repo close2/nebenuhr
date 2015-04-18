@@ -1,0 +1,330 @@
+#define F_CPU 1000000UL
+
+#include <avr/sleep.h>
+#include "macros.h"
+#include "tasks.h"
+#include "clock.h"
+#include "irqs.h"
+#include "adc.h"
+
+
+// duration in ms for hBridge output
+const uint16_t hBridgeOutDuration = 50;
+
+// wait timeSignalWaitPeriod ms until timeSignal is no longer present
+// before turning IRQ for timeSignal on again.
+const uint16_t timeSignalWaitPeriod = 10;
+
+// when displayed time is not time, we move the minute finger faster
+// but we will wait this pause (in ms) between every finger movement.
+const uint16_t pauseBetweenHBridgePulses = 500;
+
+// 256 * minBatt1Voltage / 1.1 (1.1 ref voltage)
+const uint8_t batt1Min = 186; // 0.8V
+const uint8_t batt2Min = 186; // 0.8V
+const uint8_t batt3Min = 186; // 0.8V
+
+typedef PIN_DIP_3 PauseClockPin;
+
+// DIP_4 is INT1 irq
+typedef PIN_DIP_4 CheckBatteryVoltagePin;
+
+// DIP_5 is INT0 irq
+typedef PIN_DIP_5 TimeSignalPin;
+
+typedef PIN_DIP_6 NoonSensorPin;
+
+
+typedef PIN_DIP_13 HBridge1;
+typedef PIN_DIP_14 HBridge2;
+
+typedef PIN_DIP_28 Batt1Pin;
+typedef PIN_DIP_27 Batt1OutPin;
+typedef PIN_DIP_26 Batt2Pin;
+typedef PIN_DIP_25 Batt2OutPin;
+typedef PIN_DIP_24 Batt3Pin;
+typedef PIN_DIP_23 Batt3OutPin;
+
+uint16_t time; // in minutes from 12:00; wraps every 12*60 minutes
+
+// we allow the displayed time to be pause (for instance during the night,
+// because the clock is really loud)
+uint16_t displayedTime; // in minutes from 12:00; wraps every 12*60 minutes
+
+
+///////////////////////////////  Task managment  ///////////////////////////////
+
+enum Task {
+  IncMinute = 0,
+  CheckBatteries = 0,
+};
+
+uint8_t tasksToRun;
+
+
+void startTask(Task task) {
+  tasksToRun |= _BV(task);
+}
+
+void stopTask(Task task) {
+  tasksToRun &= ~(_BV(task));
+}
+
+void stopAllTasks() {
+  tasksToRun = 0;
+}
+  
+uint8_t isAllTasksStopped() {
+  return tasksToRun = 0;
+}
+
+uint8_t isTaskStarted(Task task) {
+  return tasksToRun & ~(_BV(task));
+}
+////////////////////////////////////////////////////////////////////////////////
+
+
+/////////////////  TimerSignal -- INT0 related functionality  //////////////////
+
+void enableTimerSignalIRQ() {
+  EIMSK |= _BV(INT0);
+}
+
+void initTimerSignal() {
+  // nothing to do for pin
+  // pins are Hi-Z input by default
+  
+  // turn on irq
+  enableTimerSignalIRQ();
+  sei();
+}
+
+#define NEW_IRQ_TASK IncMinuteIrqTask
+IRQ_TASK(NEW_IRQ_TASK) {
+  time++;
+  if (time == 12 * 60) time = 0;
+
+  startTask(Task::IncMinute);
+  
+  // turn off IRQ until signal from real clock is no longer present
+  // otherwise this IRQ will trigger too often.
+  EIMSK &= ~(_BV(INT0));
+};
+#include "internal/register_irq_task_INT0.h"
+
+uint8_t timerSignalPresent() {
+  return GET_BIT(TimeSignalPin, PIN) == 0;
+}
+////////////////////////////////////////////////////////////////////////////////
+
+
+/////////////////  CheckBattery -- INT1 related functionality  /////////////////
+
+void enableCheckBatteryIRQ() {
+  EIMSK |= _BV(INT1);
+}
+
+void initCheckBatteryPin() {
+  // nothing to do for pin
+  // pins are Hi-Z input by default
+  
+  // turn on irq
+  enableCheckBatteryIRQ();
+  sei();
+}
+
+#define NEW_IRQ_TASK CheckBatteryIrqTask
+IRQ_TASK(NEW_IRQ_TASK) {
+  startTask(Task::CheckBatteries);
+  
+  // turn off IRQ until button is no longer pressed
+  // otherwise this IRQ will trigger too often.
+  EIMSK &= ~(_BV(INT1));
+};
+#include "internal/register_irq_task_INT1.h"
+
+uint8_t checkBatteryPressed() {
+  return GET_BIT(CheckBatteryVoltagePin, PIN) == 0;
+}
+////////////////////////////////////////////////////////////////////////////////
+
+
+////////////////////  PauseClock -- related functionality  /////////////////////
+
+void initClockPaused() {
+  // nothing to do
+  // pins are Hi-Z input by default
+}
+
+uint8_t clockPaused() {
+  return GET_BIT(PauseClockPin, PIN);
+}
+////////////////////////////////////////////////////////////////////////////////
+
+
+////////////////////  NoonSensor -- related functionality  /////////////////////
+
+void setNoonSensor(uint8_t v) {
+  SET_BIT(NoonSensorPin, PORT, v);
+}
+
+void initNoonSensor() {
+  SET_BIT(NoonSensorPin, DDR, 1);
+  
+  // start with noonSensor "on"
+  setNoonSensor(1);
+}
+////////////////////////////////////////////////////////////////////////////////
+
+
+struct IncMinuteTask {
+  static inline uint8_t is_enabled() {
+    return isTaskStarted(Task::IncMinute);
+  }
+  
+  template<typename T>
+  static inline T run(const T& clock) {
+    // this task will be called twice for every minute increment.
+    // first to turn the output on and second to turn it off again.
+    
+    // we also need to keep track if we have to send a positive or negative
+    // signal.
+    
+    static uint8_t status = 0;
+    
+    const uint8_t clockP = clockPaused();
+    
+    const uint8_t hBridgeStatus = status & 0b11;
+    
+    if (hBridgeStatus == 0 || hBridgeStatus == 2) {
+      if (!clockP) {
+        if (hBridgeStatus == 0) SET_BIT(HBridge1, PORT, 1);
+        else SET_BIT(HBridge1, PORT, 1);
+
+        displayedTime++;
+        if (displayedTime == 12 * 60) {
+          displayedTime = 0;
+          setNoonSensor(1);
+        } else setNoonSensor(0);
+        
+      }
+      
+      status++;
+      //             sleep for hbridgeOutDuration
+      return ms_to_units(hBridgeOutDuration);
+    }
+    
+    // status 1 or 3 → turn HBridge1 / HBridge2 off
+    if (hBridgeStatus == 1) SET_BIT(HBridge1, PORT, 0);
+    else SET_BIT(HBridge2, PORT, 0);
+      
+    // we have to make sure the timeSignal is no longer present, before
+    // turning irq for timeSignal on again.
+    if (timerSignalPresent()) return ms_to_units(timeSignalWaitPeriod);
+      
+    // only then switch to next status:
+    status++;
+    
+    // mark IncMinuteTask as done:
+    //             disable task in tasktracker
+    // remove from taskTracker before enabling IRQ (otherwise we would have a
+    // race condition
+    stopTask(Task::IncMinute);
+    
+    enableTimerSignalIRQ();
+      
+    if (!clockP && displayedTime != time) {
+      // reenable incMinuteTask, need to correct displayed time
+      startTask(Task::IncMinute);
+      return ms_to_units(pauseBetweenHBridgePulses);
+    }
+    
+    return 0;
+  }
+};
+
+#define NEW_TASK IncMinuteTask
+#include REGISTER_TASK
+
+
+struct CheckBatteriesTask {
+  static inline uint8_t is_enabled() {
+    return isTaskStarted(Task::CheckBatteries);
+  }
+  
+  typedef Adc<_adc::Mode::SingleConversion, _adc::Ref::V1_1, Batt1Pin> Adc_Batt1;
+  typedef Adc<_adc::Mode::SingleConversion, _adc::Ref::V1_1, Batt2Pin> Adc_Batt2;
+  typedef Adc<_adc::Mode::SingleConversion, _adc::Ref::V1_1, Batt3Pin> Adc_Batt3;
+  
+  template<typename T>
+  static inline T run(const T& clock) {
+    Adc_Batt1::init();
+    uint8_t batt1 = Adc_Batt1::adc_8bit();
+    // don't need to turn off adc
+    
+    Adc_Batt2::init();
+    uint8_t batt2 = Adc_Batt2::adc_8bit();
+    // don't need to turn off adc
+    
+    Adc_Batt3::init();
+    uint8_t batt3 = Adc_Batt3::adc_8bit();
+    Adc_Batt3::turn_off();
+    
+    SET_BIT(Batt1OutPin, PORT, (batt1 > batt1Min));
+    SET_BIT(Batt2OutPin, PORT, (batt2 > batt2Min));
+    SET_BIT(Batt3OutPin, PORT, (batt3 > batt3Min));
+    
+    if (checkBatteryPressed()) return ms_to_units(200);
+    
+    // user no longer presses battery check button
+    
+    // turn off all outputs:
+    SET_BIT(Batt1OutPin, PORT, 0);
+    SET_BIT(Batt2OutPin, PORT, 0);
+    SET_BIT(Batt3OutPin, PORT, 0);
+    
+    stopTask(Task::CheckBatteries);
+    
+    enableCheckBatteryIRQ();
+    return 0;
+  }
+};
+
+#define NEW_TASK CheckBatteriesTask
+#include REGISTER_TASK
+
+
+__attribute__ ((OS_main)) int main(void) {
+  
+  set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+  
+  // start with all tasks stopped
+  stopAllTasks();
+  
+  displayedTime = 0;
+  time = 0;
+  
+  initNoonSensor();
+  initClockPaused();
+  initTimerSignal();
+  
+  for (;;) {
+    execTasks<uint16_t, TASK_LIST>();
+    
+    // if all tasks are done
+    // power down
+    // go to sleep without race conditions...
+    cli();
+    if (isAllTasksStopped()) {
+      sleep_enable();
+      sei();
+      sleep_cpu();
+      sleep_disable();
+    }
+    sei();
+  }
+  return 0;
+}
+
+#define USE_ONLY_DEFINED_IRQS
+#include REGISTER_IRQS
