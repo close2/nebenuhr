@@ -19,10 +19,15 @@ const uint16_t timeSignalWaitPeriod = 10;
 // but we will wait this pause (in ms) between every finger movement.
 const uint16_t pauseBetweenHBridgePulses = 500;
 
+template <typename T>
+constexpr uint8_t voltsToUnits(T volts) {
+  return 256 * volts / 1.1;
+}
+
 // 256 * minBatt1Voltage / 1.1 (1.1 ref voltage)
-const uint8_t batt1Min = 186; // 0.8V
-const uint8_t batt2Min = 186; // 0.8V
-const uint8_t batt3Min = 186; // 0.8V
+const uint8_t batt1Min = voltsToUnits(0.8); // should be 186 units
+const uint8_t batt2Min = voltsToUnits(0.8); // should be 186 units
+const uint8_t batt3Min = voltsToUnits(0.8); // should be 186 units
 
 typedef PIN_DIP_3 PauseClockPin;
 
@@ -56,7 +61,8 @@ uint16_t displayedTime; // in minutes from 12:00; wraps every 12*60 minutes
 
 enum Task {
   IncMinute = 0,
-  CheckBatteries = 0,
+  CheckBatteries = 1,
+  ReenableTimerSignalIrq = 2
 };
 
 uint8_t tasksToRun;
@@ -105,6 +111,7 @@ IRQ_TASK(NEW_IRQ_TASK) {
   if (time == 12 * 60) time = 0;
 
   startTask(Task::IncMinute);
+  startTask(Task::ReenableTimerSignalIrq);
   
   // turn off IRQ until signal from real clock is no longer present
   // otherwise this IRQ will trigger too often.
@@ -115,6 +122,23 @@ IRQ_TASK(NEW_IRQ_TASK) {
 uint8_t timerSignalPresent() {
   return GET_BIT(TimeSignalPin, PIN) == 0;
 }
+
+#define NEW_TASK ReenableTimerSignalIrqTask
+struct NEW_TASK {
+  static inline uint8_t is_enabled() {
+    return isTaskStarted(Task::ReenableTimerSignalIrq);
+  }
+  
+  template<typename T>
+  static inline T run(const T& clock) {
+    if (!timerSignalPresent()) {
+      stopTask(Task::ReenableTimerSignalIrq);
+      enableTimerSignalIRQ();
+    }
+    return ms_to_units(5);
+  }
+};
+#include REGISTER_TASK
 ////////////////////////////////////////////////////////////////////////////////
 
 
@@ -177,7 +201,8 @@ void initNoonSensor() {
 ////////////////////////////////////////////////////////////////////////////////
 
 
-struct IncMinuteTask {
+#define NEW_TASK IncMinuteTask
+struct NEW_TASK {
   static inline uint8_t is_enabled() {
     return isTaskStarted(Task::IncMinute);
   }
@@ -227,12 +252,8 @@ struct IncMinuteTask {
     
     // mark IncMinuteTask as done:
     //             disable task in tasktracker
-    // remove from taskTracker before enabling IRQ (otherwise we would have a
-    // race condition
     stopTask(Task::IncMinute);
     
-    enableTimerSignalIRQ();
-      
     if (!clockP && displayedTime != time) {
       // reenable incMinuteTask, need to correct displayed time
       startTask(Task::IncMinute);
@@ -242,12 +263,11 @@ struct IncMinuteTask {
     return 0;
   }
 };
-
-#define NEW_TASK IncMinuteTask
 #include REGISTER_TASK
 
 
-struct CheckBatteriesTask {
+#define NEW_TASK CheckBatteriesTask
+struct NEW_TASK {
   static inline uint8_t is_enabled() {
     return isTaskStarted(Task::CheckBatteries);
   }
@@ -290,8 +310,8 @@ struct CheckBatteriesTask {
   }
 };
 
-#define NEW_TASK CheckBatteriesTask
 #include REGISTER_TASK
+
 
 
 __attribute__ ((OS_main)) int main(void) {
