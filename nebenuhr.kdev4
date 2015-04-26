@@ -1,0 +1,4 @@
+[Project]
+Name=nebenuhr
+Manager=KDevCMakeManager
+VersionControl=kdevgit

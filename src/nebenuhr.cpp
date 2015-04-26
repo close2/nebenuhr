@@ -8,9 +8,6 @@
 #include "adc.h"
 
 
-// duration in ms for hBridge output
-const uint16_t hBridgeOutDuration = 50;
-
 // wait timeSignalWaitPeriod ms until timeSignal is no longer present
 // before turning IRQ for timeSignal on again.
 const uint16_t timeSignalWaitPeriod = 10;
@@ -19,15 +16,20 @@ const uint16_t timeSignalWaitPeriod = 10;
 // but we will wait this pause (in ms) between every finger movement.
 const uint16_t pauseBetweenHBridgePulses = 500;
 
+// if there is no hBridgeOutDuration in Eeprom use this value.
+const uint16_t defaultHBridgeOutDuration = 100;
+
+
 template <typename T>
 constexpr uint8_t voltsToUnits(T volts) {
   return 256 * volts / 1.1;
 }
 
 // 256 * minBatt1Voltage / 1.1 (1.1 ref voltage)
-const uint8_t batt1Min = voltsToUnits(0.8); // should be 186 units
-const uint8_t batt2Min = voltsToUnits(0.8); // should be 186 units
-const uint8_t batt3Min = voltsToUnits(0.8); // should be 186 units
+const auto batt1Min = voltsToUnits(0.8); // should be 186 units
+const auto batt2Min = voltsToUnits(0.8); // should be 186 units
+const auto batt3Min = voltsToUnits(0.8); // should be 186 units
+
 
 typedef PIN_DIP_3 PauseClockPin;
 
@@ -197,6 +199,36 @@ void initNoonSensor() {
   
   // start with noonSensor "on"
   setNoonSensor(1);
+}
+////////////////////////////////////////////////////////////////////////////////
+
+
+// duration in ms for hBridge output
+uint16_t hBridgeOutDuration;
+
+///////////////  HBrdigeOutDuration -- related functionality  //////////////////
+
+void initHBridgeOutDuration() {
+  bits16_t eepRomHBridgeDuration;
+  
+  // eeprom address 0
+  EEARH = 0;
+  EEARL = 0;
+  // start read operation:
+  EECR |= _BV(EERE);
+  eepRomHBridgeDuration.avr.lo = EEDR;
+  
+  // eeprom address 1
+  EEARH = 0;
+  EEARL = 1;
+  EECR |= _BV(EERE);
+  eepRomHBridgeDuration.avr.hi = EEDR;
+  
+  if (eepRomHBridgeDuration.uint16 != 0) {
+    hBridgeOutDuration = eepRomHBridgeDuration.uint16;
+  } else {
+    hBridgeOutDuration = defaultHBridgeOutDuration;
+  }
 }
 ////////////////////////////////////////////////////////////////////////////////
 
