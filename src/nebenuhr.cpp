@@ -359,6 +359,7 @@ __attribute__ ((OS_main)) int main(void) {
   initNoonSensor();
   initClockPaused();
   initTimerSignal();
+  initHBridgeOutDuration();
   
   for (;;) {
     execTasks<uint16_t, TASK_LIST>();
