@@ -16,9 +16,6 @@ const uint16_t timeSignalWaitPeriod = 10;
 // but we will wait this pause (in ms) between every finger movement.
 const uint16_t pauseBetweenHBridgePulses = 500;
 
-// if there is no hBridgeOutDuration in Eeprom use this value.
-const uint16_t defaultHBridgeOutDuration = 100;
-
 
 template <typename T>
 constexpr uint8_t voltsToUnits(T volts) {
@@ -51,6 +48,53 @@ typedef PIN_DIP_26 Batt2Pin;
 typedef PIN_DIP_25 Batt2OutPin;
 typedef PIN_DIP_24 Batt3Pin;
 typedef PIN_DIP_23 Batt3OutPin;
+
+
+// duration in units for hBridge output
+uint16_t hBridgeOutDuration_units;
+
+// using jumpers on the following pins let the user switch between different
+// timings
+typedef PIN_DIP_15 DurationIn0;
+typedef PIN_DIP_16 DurationIn1;
+typedef PIN_DIP_17 DurationIn2;
+typedef PIN_DIP_18 DurationIn3;
+typedef PIN_DIP_19 DurationIn4;
+
+const uint16_t durations[32] = {
+  ms_to_units((uint16_t) 3), // 0
+  ms_to_units((uint16_t) 4),
+  ms_to_units((uint16_t) 5),
+  ms_to_units((uint16_t) 7),
+  ms_to_units((uint16_t) 9),
+  ms_to_units((uint16_t) 12),
+  ms_to_units((uint16_t) 15),
+  ms_to_units((uint16_t) 20),
+  ms_to_units((uint16_t) 25),
+  ms_to_units((uint16_t) 30),
+  ms_to_units((uint16_t) 35), // 10
+  ms_to_units((uint16_t) 40),
+  ms_to_units((uint16_t) 45),
+  ms_to_units((uint16_t) 50),
+  ms_to_units((uint16_t) 55),
+  ms_to_units((uint16_t) 60),
+  ms_to_units((uint16_t) 65),
+  ms_to_units((uint16_t) 70),
+  ms_to_units((uint16_t) 75),
+  ms_to_units((uint16_t) 80),
+  ms_to_units((uint16_t) 85), // 20
+  ms_to_units((uint16_t) 90),
+  ms_to_units((uint16_t) 100),
+  ms_to_units((uint16_t) 110),
+  ms_to_units((uint16_t) 120),
+  ms_to_units((uint16_t) 130),
+  ms_to_units((uint16_t) 150),
+  ms_to_units((uint16_t) 170),
+  ms_to_units((uint16_t) 200),
+  ms_to_units((uint16_t) 250),
+  ms_to_units((uint16_t) 300), // 30
+  ms_to_units((uint16_t) 500)
+};
 
 uint16_t time; // in minutes from 12:00; wraps every 12*60 minutes
 
@@ -92,6 +136,21 @@ uint8_t isTaskStarted(Task task) {
 ////////////////////////////////////////////////////////////////////////////////
 
 
+////////////////////  NoonSensor -- related functionality  /////////////////////
+
+void setNoonSensor(uint8_t v) {
+  SET_BIT(NoonSensorPin, PORT, v);
+}
+
+void initNoonSensor() {
+  SET_BIT(NoonSensorPin, DDR, 1);
+  
+  // start with noonSensor "on"
+  setNoonSensor(1);
+}
+////////////////////////////////////////////////////////////////////////////////
+
+
 /////////////////  TimerSignal -- INT0 related functionality  //////////////////
 
 void enableTimerSignalIRQ() {
@@ -110,7 +169,12 @@ void initTimerSignal() {
 #define NEW_IRQ_TASK IncMinuteIrqTask
 IRQ_TASK(NEW_IRQ_TASK) {
   time++;
-  if (time == 12 * 60) time = 0;
+  if (time == 12 * 60) {
+    time = 0;
+    setNoonSensor(1);
+  }
+  else setNoonSensor(0);
+        
 
   startTask(Task::IncMinute);
   startTask(Task::ReenableTimerSignalIrq);
@@ -188,47 +252,15 @@ uint8_t clockPaused() {
 ////////////////////////////////////////////////////////////////////////////////
 
 
-////////////////////  NoonSensor -- related functionality  /////////////////////
-
-void setNoonSensor(uint8_t v) {
-  SET_BIT(NoonSensorPin, PORT, v);
-}
-
-void initNoonSensor() {
-  SET_BIT(NoonSensorPin, DDR, 1);
-  
-  // start with noonSensor "on"
-  setNoonSensor(1);
-}
-////////////////////////////////////////////////////////////////////////////////
-
-
-// duration in ms for hBridge output
-uint16_t hBridgeOutDuration;
 
 ///////////////  HBrdigeOutDuration -- related functionality  //////////////////
 
-void initHBridgeOutDuration() {
-  bits16_t eepRomHBridgeDuration;
+void initHBridgeOutDuration_units() {
+  uint8_t index;
+  // pins are by default input
+  index = GET8_BYTE(PIN, 0, PIN_UNUSED, PIN_UNUSED, PIN_UNUSED, DurationIn4, DurationIn3, DurationIn2, DurationIn1, DurationIn0);
   
-  // eeprom address 0
-  EEARH = 0;
-  EEARL = 0;
-  // start read operation:
-  EECR |= _BV(EERE);
-  eepRomHBridgeDuration.avr.lo = EEDR;
-  
-  // eeprom address 1
-  EEARH = 0;
-  EEARL = 1;
-  EECR |= _BV(EERE);
-  eepRomHBridgeDuration.avr.hi = EEDR;
-  
-  if (eepRomHBridgeDuration.uint16 != 0) {
-    hBridgeOutDuration = eepRomHBridgeDuration.uint16;
-  } else {
-    hBridgeOutDuration = defaultHBridgeOutDuration;
-  }
+  hBridgeOutDuration_units = durations[index];
 }
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -259,16 +291,12 @@ struct NEW_TASK {
         else SET_BIT(HBridge1, PORT, 1);
 
         displayedTime++;
-        if (displayedTime == 12 * 60) {
-          displayedTime = 0;
-          setNoonSensor(1);
-        } else setNoonSensor(0);
-        
+        if (displayedTime == 12 * 60) displayedTime = 0;
       }
       
       status++;
-      //             sleep for hbridgeOutDuration
-      return ms_to_units(hBridgeOutDuration);
+      // sleep for hbridgeOutDuration
+      return hBridgeOutDuration_units;
     }
     
     // status 1 or 3 → turn HBridge1 / HBridge2 off
@@ -359,7 +387,7 @@ __attribute__ ((OS_main)) int main(void) {
   initNoonSensor();
   initClockPaused();
   initTimerSignal();
-  initHBridgeOutDuration();
+  initHBridgeOutDuration_units();
   
   for (;;) {
     execTasks<uint16_t, TASK_LIST>();
