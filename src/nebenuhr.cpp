@@ -62,38 +62,38 @@ typedef PIN_DIP_18 DurationIn3;
 typedef PIN_DIP_19 DurationIn4;
 
 const uint16_t durations[32] = {
-  ms_to_units((uint16_t) 3), // 0
-  ms_to_units((uint16_t) 4),
-  ms_to_units((uint16_t) 5),
-  ms_to_units((uint16_t) 7),
-  ms_to_units((uint16_t) 9),
-  ms_to_units((uint16_t) 12),
-  ms_to_units((uint16_t) 15),
-  ms_to_units((uint16_t) 20),
-  ms_to_units((uint16_t) 25),
-  ms_to_units((uint16_t) 30),
-  ms_to_units((uint16_t) 35), // 10
-  ms_to_units((uint16_t) 40),
-  ms_to_units((uint16_t) 45),
-  ms_to_units((uint16_t) 50),
-  ms_to_units((uint16_t) 55),
-  ms_to_units((uint16_t) 60),
-  ms_to_units((uint16_t) 65),
-  ms_to_units((uint16_t) 70),
-  ms_to_units((uint16_t) 75),
-  ms_to_units((uint16_t) 80),
-  ms_to_units((uint16_t) 85), // 20
-  ms_to_units((uint16_t) 90),
-  ms_to_units((uint16_t) 100),
-  ms_to_units((uint16_t) 110),
-  ms_to_units((uint16_t) 120),
-  ms_to_units((uint16_t) 130),
+  ms_to_units((uint16_t) 130), // 0
+  ms_to_units((uint16_t) 140),
   ms_to_units((uint16_t) 150),
+  ms_to_units((uint16_t) 160),
   ms_to_units((uint16_t) 170),
+  ms_to_units((uint16_t) 180),
+  ms_to_units((uint16_t) 190),
   ms_to_units((uint16_t) 200),
+  ms_to_units((uint16_t) 210),
+  ms_to_units((uint16_t) 220),
+  ms_to_units((uint16_t) 230), // 10
+  ms_to_units((uint16_t) 240),
   ms_to_units((uint16_t) 250),
-  ms_to_units((uint16_t) 300), // 30
-  ms_to_units((uint16_t) 500)
+  ms_to_units((uint16_t) 260),
+  ms_to_units((uint16_t) 270),
+  ms_to_units((uint16_t) 280),
+  ms_to_units((uint16_t) 290),
+  ms_to_units((uint16_t) 300),
+  ms_to_units((uint16_t) 320),
+  ms_to_units((uint16_t) 340),
+  ms_to_units((uint16_t) 360), // 20
+  ms_to_units((uint16_t) 380),
+  ms_to_units((uint16_t) 400),
+  ms_to_units((uint16_t) 420),
+  ms_to_units((uint16_t) 440),
+  ms_to_units((uint16_t) 460),
+  ms_to_units((uint16_t) 480),
+  ms_to_units((uint16_t) 500),
+  ms_to_units((uint16_t) 525),
+  ms_to_units((uint16_t) 550),
+  ms_to_units((uint16_t) 600), // 30
+  ms_to_units((uint16_t) 650)
 };
 
 uint16_t time; // in minutes from 12:00; wraps every 12*60 minutes
@@ -127,7 +127,7 @@ void stopAllTasks() {
 }
   
 uint8_t isAllTasksStopped() {
-  return tasksToRun = 0;
+  return tasksToRun == 0;
 }
 
 uint8_t isTaskStarted(Task task) {
@@ -255,6 +255,11 @@ uint8_t clockPaused() {
 
 ///////////////  HBrdigeOutDuration -- related functionality  //////////////////
 
+void initHBridge() {
+  SET_BIT(HBridge1, DDR, 1);
+  SET_BIT(HBridge2, DDR, 1);
+}
+
 void initHBridgeOutDuration_units() {
   uint8_t index;
   // pins are by default input
@@ -288,7 +293,7 @@ struct NEW_TASK {
     if (hBridgeStatus == 0 || hBridgeStatus == 2) {
       if (!clockP) {
         if (hBridgeStatus == 0) SET_BIT(HBridge1, PORT, 1);
-        else SET_BIT(HBridge1, PORT, 1);
+        else SET_BIT(HBridge2, PORT, 1);
 
         displayedTime++;
         if (displayedTime == 12 * 60) displayedTime = 0;
@@ -300,12 +305,12 @@ struct NEW_TASK {
     }
     
     // status 1 or 3 → turn HBridge1 / HBridge2 off
-    if (hBridgeStatus == 1) SET_BIT(HBridge1, PORT, 0);
-    else SET_BIT(HBridge2, PORT, 0);
+    SET_BIT(HBridge1, PORT, 0);
+    SET_BIT(HBridge2, PORT, 0);
       
     // we have to make sure the timeSignal is no longer present, before
     // turning irq for timeSignal on again.
-    if (timerSignalPresent()) return ms_to_units(timeSignalWaitPeriod);
+    // FIXME if (timerSignalPresent()) return ms_to_units(timeSignalWaitPeriod);
       
     // only then switch to next status:
     status++;
@@ -350,6 +355,8 @@ struct NEW_TASK {
     uint8_t batt3 = Adc_Batt3::adc_8bit();
     Adc_Batt3::turn_off();
     
+    // FIXME SET pins to output! in an init function
+    
     SET_BIT(Batt1OutPin, PORT, (batt1 > batt1Min));
     SET_BIT(Batt2OutPin, PORT, (batt2 > batt2Min));
     SET_BIT(Batt3OutPin, PORT, (batt3 > batt3Min));
@@ -372,7 +379,82 @@ struct NEW_TASK {
 
 #include REGISTER_TASK
 
+//#define TEST5
 
+#ifdef TEST1
+  // test led output
+  __attribute__ ((OS_main)) int main(void) {
+    
+    SET_BIT(Batt1OutPin, DDR, 1);
+    SET_BIT(Batt2OutPin, DDR, 1);
+    SET_BIT(Batt3OutPin, DDR, 1);
+    
+    SET_BIT(Batt1OutPin, PORT, 1);
+    SET_BIT(Batt2OutPin, PORT, 1);
+    SET_BIT(Batt3OutPin, PORT, 1);
+    for (;;);
+    return 0;
+  }
+#  define USE_ONLY_DEFINED_IRQS
+#  include REGISTER_IRQS
+
+#elif defined TEST2
+
+  // test power down
+  __attribute__ ((OS_main)) int main(void) {
+    
+    set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+    for (;;) {
+      cli();
+      sleep_enable();
+      sei();
+      sleep_cpu();
+      
+      // visual indicator if sleep isn't entered:
+      SET_BIT(Batt1OutPin, DDR, 1);
+      SET_BIT(Batt1OutPin, PIN, 1);
+    }
+    return 0;
+  }
+#  define USE_ONLY_DEFINED_IRQS
+#  include REGISTER_IRQS
+
+#elif defined TEST3
+#  include <util/delay.h>
+
+  // test hbridge
+  __attribute__ ((OS_main)) int main(void) {
+    
+    initHBridge();
+    for (;;) {
+      SET_BIT(HBridge1, PORT, 1);
+      _delay_ms(500);
+      SET_BIT(HBridge1, PORT, 0);
+      _delay_ms(500);
+      SET_BIT(HBridge2, PORT, 1);
+      _delay_ms(500);
+      SET_BIT(HBridge2, PORT, 0);
+      _delay_ms(500);
+    }
+    return 0;
+  }
+#  define USE_ONLY_DEFINED_IRQS
+#  include REGISTER_IRQS
+
+#elif defined TEST4
+  // test power output wenn hbridge is off
+  __attribute__ ((OS_main)) int main(void) {
+    
+    initHBridge();
+    SET_BIT(HBridge1, PORT, 0);
+    SET_BIT(HBridge2, PORT, 0);
+    for (;;);
+    return 0;
+  }
+#  define USE_ONLY_DEFINED_IRQS
+#  include REGISTER_IRQS
+
+#elif defined TEST5
 
 __attribute__ ((OS_main)) int main(void) {
   
@@ -382,12 +464,14 @@ __attribute__ ((OS_main)) int main(void) {
   stopAllTasks();
   
   displayedTime = 0;
-  time = 0;
+  time = 0x0FFF;
+  tasksToRun |= Task::IncMinute;
   
   initNoonSensor();
   initClockPaused();
   initTimerSignal();
   initHBridgeOutDuration_units();
+  initHBridge();
   
   for (;;) {
     execTasks<uint16_t, TASK_LIST>();
@@ -409,3 +493,46 @@ __attribute__ ((OS_main)) int main(void) {
 
 #define USE_ONLY_DEFINED_IRQS
 #include REGISTER_IRQS
+
+#elif defined TEST6
+#else
+
+
+__attribute__ ((OS_main)) int main(void) {
+  
+  set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+  
+  // start with all tasks stopped
+  stopAllTasks();
+  
+  displayedTime = 0;
+  time = 0;
+  
+  initNoonSensor();
+  initClockPaused();
+  initTimerSignal();
+  initHBridgeOutDuration_units();
+  initHBridge();
+  
+  for (;;) {
+    execTasks<uint16_t, TASK_LIST>();
+    
+    // if all tasks are done
+    // power down
+    // go to sleep without race conditions...
+    cli();
+    if (isAllTasksStopped()) {
+      sleep_enable();
+      sei();
+      sleep_cpu();
+      sleep_disable();
+    }
+    sei();
+  }
+  return 0;
+}
+
+#define USE_ONLY_DEFINED_IRQS
+#include REGISTER_IRQS
+
+#endif

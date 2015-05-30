@@ -2,21 +2,23 @@ NAME=nebenuhr
 CC=avr-gcc
 CXX=avr-gcc
 OBJDUMP=avr-objdump
-ATMEGA=atmega328
+#ATMEGA=atmega328
+ATMEGA=atmega48a
 CFLAGS_DEBUG=-I ../libcl -Wall -mmcu=$(ATMEGA) -g3 -gdwarf-2
 CXXFLAGS_DEBUG=-g3 -gdwarf-2 -I ../libcl -Wall -Wno-unused-function -mcall-prologues -mmcu=$(ATMEGA) -fno-threadsafe-statics -std=c++11 -fwhole-program
 CFLAGS_RELEASE=-g -gdwarf-2 -I ../libcl -Os -Wall -Wno-unused-function -mcall-prologues -mmcu=$(ATMEGA)
 CXXFLAGS_RELEASE=-g -gdwarf-2 -I ../libcl -Os -Wall -Wno-unused-function -mcall-prologues -mmcu=$(ATMEGA) -fno-threadsafe-statics -std=c++11 -fwhole-program
 OBJ2HEX=avr-objcopy 
-# FLASH_COMMAND	= avrdude -pm328 -c usbasp
-FLASH_COMMAND	= avrdude -pm328 -c avrisp2 -P usb
+DEV=m48
+#FLASH_COMMAND	= avrdude -pm328 -c avrisp2 -P usb
+FLASH_COMMAND	= avrdude -p$(DEV) -c avrisp2 -P usb
 # if usbprog can't connect try this (http://stackoverflow.com/questions/15313269/avrispmkii-connection-status-unknown-status-0x00):
 # FLASH_COMMAND	= avrdude -pm328 -c avrisp2 -P usb -B 22
 FLASH		= $(FLASH_COMMAND) -U flash:w:$(NAME).hex
 FLASH_FAST	= $(FLASH_COMMAND) -V -U flash:w:$(NAME).hex
 FLASH_EEP	= $(FLASH_COMMAND) -U eeprom:w:$(NAME).eep
-FLASH_FUSE_8MHZ = avrdude -pm328 -c usbasp -U lfuse:w:0xe2:m -U hfuse:w:0xd9:m -U efuse:w:0x07:m
-FLASH_FUSE_1MHZ = avrdude -pm328 -c usbasp -U lfuse:w:0x62:m -U hfuse:w:0xd9:m -U efuse:w:0x07:m
+FLASH_FUSE_8MHZ = avrdude -p$(DEV) -c usbasp -U lfuse:w:0xe2:m -U hfuse:w:0xd9:m -U efuse:w:0x07:m
+FLASH_FUSE_1MHZ = avrdude -p$(DEV) -c usbasp -U lfuse:w:0x62:m -U hfuse:w:0xd9:m -U efuse:w:0x07:m
 HEX_EEPROM_FLAGS = -j .eeprom
 HEX_EEPROM_FLAGS += --set-section-flags=.eeprom="alloc,load"
 HEX_EEPROM_FLAGS += --change-section-lma .eeprom=0 --no-change-warnings
