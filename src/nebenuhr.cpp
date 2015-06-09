@@ -154,7 +154,7 @@ void initNoonSensor() {
 /////////////////  TimerSignal -- INT0 related functionality  //////////////////
 
 void enableTimerSignalIRQ() {
-  EIMSK |= _BV(INT0);
+  EIMSK |= _BV(INT1);
 }
 
 void initTimerSignal() {
@@ -181,7 +181,7 @@ IRQ_TASK(NEW_IRQ_TASK) {
   
   // turn off IRQ until signal from real clock is no longer present
   // otherwise this IRQ will trigger too often.
-  EIMSK &= ~(_BV(INT0));
+  EIMSK &= ~(_BV(INT1));
 };
 #include "internal/register_irq_task_INT0.h"
 
@@ -211,7 +211,7 @@ struct NEW_TASK {
 /////////////////  CheckBattery -- INT1 related functionality  /////////////////
 
 void enableCheckBatteryIRQ() {
-  EIMSK |= _BV(INT1);
+  EIMSK |= _BV(INT0);
 }
 
 void initCheckBatteryPin() {
@@ -219,7 +219,7 @@ void initCheckBatteryPin() {
   // pins are Hi-Z input by default
   
   // turn on irq
-  enableCheckBatteryIRQ();
+  // FIXME enableCheckBatteryIRQ();
   sei();
 }
 
@@ -229,7 +229,7 @@ IRQ_TASK(NEW_IRQ_TASK) {
   
   // turn off IRQ until button is no longer pressed
   // otherwise this IRQ will trigger too often.
-  EIMSK &= ~(_BV(INT1));
+  EIMSK &= ~(_BV(INT0));
 };
 #include "internal/register_irq_task_INT1.h"
 
@@ -310,7 +310,7 @@ struct NEW_TASK {
       
     // we have to make sure the timeSignal is no longer present, before
     // turning irq for timeSignal on again.
-    // FIXME if (timerSignalPresent()) return ms_to_units(timeSignalWaitPeriod);
+    if (timerSignalPresent()) return ms_to_units(timeSignalWaitPeriod);
       
     // only then switch to next status:
     status++;
@@ -379,7 +379,7 @@ struct NEW_TASK {
 
 #include REGISTER_TASK
 
-//#define TEST5
+#define TEST3
 
 #ifdef TEST1
   // test led output
@@ -404,10 +404,12 @@ struct NEW_TASK {
   __attribute__ ((OS_main)) int main(void) {
     
     set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+    
     for (;;) {
       cli();
       sleep_enable();
       sei();
+      sleep_enable();
       sleep_cpu();
       
       // visual indicator if sleep isn't entered:
@@ -428,13 +430,13 @@ struct NEW_TASK {
     initHBridge();
     for (;;) {
       SET_BIT(HBridge1, PORT, 1);
-      _delay_ms(500);
+      _delay_ms(2000);
       SET_BIT(HBridge1, PORT, 0);
-      _delay_ms(500);
+      _delay_ms(2000);
       SET_BIT(HBridge2, PORT, 1);
-      _delay_ms(500);
+      _delay_ms(2000);
       SET_BIT(HBridge2, PORT, 0);
-      _delay_ms(500);
+      _delay_ms(2000);
     }
     return 0;
   }
