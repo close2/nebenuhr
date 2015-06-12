@@ -202,11 +202,14 @@ struct NEW_TASK {
   
   template<typename T>
   static inline T run(const T& clock) {
+    // we have to make sure the timeSignal is no longer present, before
+    // turning irq for timeSignal on again.
     if (!timerSignalPresent()) {
       stopTask(Task::ReenableTimerSignalIrq);
       enableTimerSignalIRQ();
+      return 0;
     }
-    return ms_to_units(5);
+    return ms_to_units(timeSignalWaitPeriod);
   }
 };
 #include REGISTER_TASK
@@ -267,7 +270,7 @@ uint8_t clockPaused() {
 
 
 
-///////////////  HBrdigeOutDuration -- related functionality  //////////////////
+///////////////  HBridgeOutDuration -- related functionality  //////////////////
 
 void initHBridge() {
   SET_BIT(HBridge1, DDR, 1);
@@ -300,7 +303,8 @@ struct NEW_TASK {
     
     enum HBridgeState {
       On = 0,
-      Off = 1
+      OffPause = 1,
+      Off = 2
     };
     
     static HBridgeState hBridgeState = Off;
@@ -310,6 +314,8 @@ struct NEW_TASK {
     const uint8_t bridgeSelector = displayedTime & 0b1;
     
     if (hBridgeState == Off) {
+      
+      hBridgeState = On;
       if (!clockP) {
         if (bridgeSelector == 0) SET_BIT(HBridge1, PORT, 1);
         else SET_BIT(HBridge2, PORT, 1);
@@ -318,33 +324,29 @@ struct NEW_TASK {
         if (displayedTime == 12 * 60) displayedTime = 0;
       }
       
-      hBridgeState = On;
       // sleep for hbridgeOutDuration
       return hBridgeOutDuration_units;
-    }
-    
-    // state is on → turn off
-    SET_BIT(HBridge1, PORT, 0);
-    SET_BIT(HBridge2, PORT, 0);
+    } else if (hBridgeState == On) {
       
-    // we have to make sure the timeSignal is no longer present, before
-    // turning irq for timeSignal on again.
-    if (timerSignalPresent()) return ms_to_units(timeSignalWaitPeriod);
+      hBridgeState = OffPause;
+    
+      // state is on → turn off
+      SET_BIT(HBridge1, PORT, 0);
+      SET_BIT(HBridge2, PORT, 0);
       
-    // only then switch to next status:
-    hBridgeState = Off;
-    
-    // mark IncMinuteTask as done:
-    //             disable task in tasktracker
-    stopTask(Task::IncMinute);
-    
-    if (!clockP && displayedTime != time) {
-      // reenable incMinuteTask, need to correct displayed time
-      startTask(Task::IncMinute);
       return ms_to_units(pauseBetweenHBridgePulses);
-    }
+    } else { // HBridgeState == OffPause
+      
+      hBridgeState = Off;
+      
+      if (clockP || displayedTime == time) {
+        // mark IncMinuteTask as done:
+        //             disable task in tasktracker
+        stopTask(Task::IncMinute);
+      }
     
-    return 0;
+      return 0;
+    }
   }
 };
 #include REGISTER_TASK
