@@ -42,6 +42,7 @@ typedef PIN_DIP_6 NoonSensorPin;
 typedef PIN_DIP_13 HBridge1;
 typedef PIN_DIP_14 HBridge2;
 
+typedef PIN_DIP_11 VoltageFetPin;
 typedef PIN_DIP_28 Batt1Pin;
 typedef PIN_DIP_27 Batt1OutPin;
 typedef PIN_DIP_26 Batt2Pin;
@@ -151,10 +152,14 @@ void initNoonSensor() {
 ////////////////////////////////////////////////////////////////////////////////
 
 
-/////////////////  TimerSignal -- INT0 related functionality  //////////////////
+/////////////////  TimerSignal -- INT1 related functionality  //////////////////
 
 void enableTimerSignalIRQ() {
   EIMSK |= _BV(INT1);
+}
+
+void disableTimerSignalIRQ() {
+  EIMSK &= ~(_BV(INT1));
 }
 
 void initTimerSignal() {
@@ -181,9 +186,9 @@ IRQ_TASK(NEW_IRQ_TASK) {
   
   // turn off IRQ until signal from real clock is no longer present
   // otherwise this IRQ will trigger too often.
-  EIMSK &= ~(_BV(INT1));
+  disableTimerSignalIRQ();
 };
-#include "internal/register_irq_task_INT0.h"
+#include "internal/register_irq_task_INT1.h"
 
 uint8_t timerSignalPresent() {
   return GET_BIT(TimeSignalPin, PIN) == 0;
@@ -208,18 +213,27 @@ struct NEW_TASK {
 ////////////////////////////////////////////////////////////////////////////////
 
 
-/////////////////  CheckBattery -- INT1 related functionality  /////////////////
+/////////////////  CheckBattery -- INT0 related functionality  /////////////////
 
 void enableCheckBatteryIRQ() {
   EIMSK |= _BV(INT0);
 }
 
+void disableCheckBatteryIRQ() {
+  EIMSK &= ~(_BV(INT0));
+}
+
 void initCheckBatteryPin() {
-  // nothing to do for pin
+  // nothing to do for input pin
   // pins are Hi-Z input by default
   
+  // turn output pins to output:
+  SET_BIT(Batt1OutPin, DDR, 1);
+  SET_BIT(Batt2OutPin, DDR, 1);
+  SET_BIT(Batt3OutPin, DDR, 1);
+  
   // turn on irq
-  // FIXME enableCheckBatteryIRQ();
+  enableCheckBatteryIRQ();
   sei();
 }
 
@@ -229,9 +243,9 @@ IRQ_TASK(NEW_IRQ_TASK) {
   
   // turn off IRQ until button is no longer pressed
   // otherwise this IRQ will trigger too often.
-  EIMSK &= ~(_BV(INT0));
+  disableCheckBatteryIRQ();
 };
-#include "internal/register_irq_task_INT1.h"
+#include "internal/register_irq_task_INT0.h"
 
 uint8_t checkBatteryPressed() {
   return GET_BIT(CheckBatteryVoltagePin, PIN) == 0;
@@ -284,27 +298,32 @@ struct NEW_TASK {
     // we also need to keep track if we have to send a positive or negative
     // signal.
     
-    static uint8_t status = 0;
+    enum HBridgeState {
+      On = 0,
+      Off = 1
+    };
+    
+    static HBridgeState hBridgeState = Off;
     
     const uint8_t clockP = clockPaused();
     
-    const uint8_t hBridgeStatus = status & 0b11;
+    const uint8_t bridgeSelector = displayedTime & 0b1;
     
-    if (hBridgeStatus == 0 || hBridgeStatus == 2) {
+    if (hBridgeState == Off) {
       if (!clockP) {
-        if (hBridgeStatus == 0) SET_BIT(HBridge1, PORT, 1);
+        if (bridgeSelector == 0) SET_BIT(HBridge1, PORT, 1);
         else SET_BIT(HBridge2, PORT, 1);
 
         displayedTime++;
         if (displayedTime == 12 * 60) displayedTime = 0;
       }
       
-      status++;
+      hBridgeState = On;
       // sleep for hbridgeOutDuration
       return hBridgeOutDuration_units;
     }
     
-    // status 1 or 3 → turn HBridge1 / HBridge2 off
+    // state is on → turn off
     SET_BIT(HBridge1, PORT, 0);
     SET_BIT(HBridge2, PORT, 0);
       
@@ -313,7 +332,7 @@ struct NEW_TASK {
     if (timerSignalPresent()) return ms_to_units(timeSignalWaitPeriod);
       
     // only then switch to next status:
-    status++;
+    hBridgeState = Off;
     
     // mark IncMinuteTask as done:
     //             disable task in tasktracker
@@ -343,6 +362,9 @@ struct NEW_TASK {
   
   template<typename T>
   static inline T run(const T& clock) {
+    // "turn on" fet to pass voltages from batteries:
+    SET_BIT(VoltageFetPin, PORT, 1);
+    
     Adc_Batt1::init();
     uint8_t batt1 = Adc_Batt1::adc_8bit();
     // don't need to turn off adc
@@ -355,8 +377,6 @@ struct NEW_TASK {
     uint8_t batt3 = Adc_Batt3::adc_8bit();
     Adc_Batt3::turn_off();
     
-    // FIXME SET pins to output! in an init function
-    
     SET_BIT(Batt1OutPin, PORT, (batt1 > batt1Min));
     SET_BIT(Batt2OutPin, PORT, (batt2 > batt2Min));
     SET_BIT(Batt3OutPin, PORT, (batt3 > batt3Min));
@@ -364,6 +384,8 @@ struct NEW_TASK {
     if (checkBatteryPressed()) return ms_to_units(200);
     
     // user no longer presses battery check button
+    
+    SET_BIT(VoltageFetPin, PORT, 0);
     
     // turn off all outputs:
     SET_BIT(Batt1OutPin, PORT, 0);
@@ -376,10 +398,9 @@ struct NEW_TASK {
     return 0;
   }
 };
-
 #include REGISTER_TASK
 
-#define TEST3
+//#define TEST3
 
 #ifdef TEST1
   // test led output
