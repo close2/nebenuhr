@@ -132,7 +132,7 @@ uint8_t isAllTasksStopped() {
 }
 
 uint8_t isTaskStarted(Task task) {
-  return tasksToRun & ~(_BV(task));
+  return tasksToRun & _BV(task);
 }
 ////////////////////////////////////////////////////////////////////////////////
 
