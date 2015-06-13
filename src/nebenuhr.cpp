@@ -145,9 +145,7 @@ void setNoonSensor(uint8_t v) {
 
 void initNoonSensor() {
   SET_BIT(NoonSensorPin, DDR, 1);
-  
-  // start with noonSensor "on"
-  setNoonSensor(1);
+  // do not automatically start with noon sensor on
 }
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -530,8 +528,8 @@ __attribute__ ((OS_main)) int main(void) {
   // start with all tasks stopped
   stopAllTasks();
   
-  displayedTime = 0;
-  time = 0;
+  displayedTime = 12 * 60 - 2;
+  time = displayedTime;
   
   initNoonSensor();
   initClockPaused();
