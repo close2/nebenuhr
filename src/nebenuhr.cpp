@@ -14,7 +14,7 @@ const uint16_t timeSignalWaitPeriod = 10;
 
 // when displayed time is not time, we move the minute finger faster
 // but we will wait this pause (in ms) between every finger movement.
-const uint16_t pauseBetweenHBridgePulses = 500;
+const uint16_t pauseBetweenHBridgePulses = 250;
 
 
 template <typename T>
@@ -50,9 +50,6 @@ typedef PIN_DIP_25 Batt2OutPin;
 typedef PIN_DIP_24 Batt3Pin;
 typedef PIN_DIP_23 Batt3OutPin;
 
-
-// duration in units for hBridge output
-uint16_t hBridgeOutDuration_units;
 
 // using jumpers on the following pins let the user switch between different
 // timings
@@ -233,6 +230,8 @@ void initCheckBatteryPin() {
   SET_BIT(Batt2OutPin, DDR, 1);
   SET_BIT(Batt3OutPin, DDR, 1);
   
+  SET_BIT(VoltageFetPin, DDR, 1);
+  
   // turn on irq
   enableCheckBatteryIRQ();
   sei();
@@ -275,12 +274,12 @@ void initHBridge() {
   SET_BIT(HBridge2, DDR, 1);
 }
 
-void initHBridgeOutDuration_units() {
+uint16_t readHBridgeOutDuration_units() {
   uint8_t index;
   // pins are by default input
   index = GET8_BYTE(PIN, 0, PIN_UNUSED, PIN_UNUSED, PIN_UNUSED, DurationIn4, DurationIn3, DurationIn2, DurationIn1, DurationIn0);
   
-  hBridgeOutDuration_units = durations[index];
+  return durations[index];
 }
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -323,7 +322,7 @@ struct NEW_TASK {
       }
       
       // sleep for hbridgeOutDuration
-      return hBridgeOutDuration_units;
+      return readHBridgeOutDuration_units();
     } else if (hBridgeState == On) {
       
       hBridgeState = OffPause;
@@ -366,16 +365,15 @@ struct NEW_TASK {
     SET_BIT(VoltageFetPin, PORT, 1);
     
     Adc_Batt1::init();
-    uint8_t batt1 = Adc_Batt1::adc_8bit();
+    const uint8_t batt1 = Adc_Batt1::adc_8bit();
     // don't need to turn off adc
     
     Adc_Batt2::init();
-    uint8_t batt2 = Adc_Batt2::adc_8bit();
+    const uint8_t batt2 = Adc_Batt2::adc_8bit();
     // don't need to turn off adc
     
     Adc_Batt3::init();
-    uint8_t batt3 = Adc_Batt3::adc_8bit();
-    Adc_Batt3::turn_off();
+    const uint8_t batt3 = Adc_Batt3::adc_8bit();
     
     SET_BIT(Batt1OutPin, PORT, (batt1 > batt1Min));
     SET_BIT(Batt2OutPin, PORT, (batt2 > batt2Min));
@@ -385,6 +383,7 @@ struct NEW_TASK {
     
     // user no longer presses battery check button
     
+    Adc_Batt3::turn_off();
     SET_BIT(VoltageFetPin, PORT, 0);
     
     // turn off all outputs:
@@ -395,12 +394,13 @@ struct NEW_TASK {
     stopTask(Task::CheckBatteries);
     
     enableCheckBatteryIRQ();
+    
     return 0;
   }
 };
 #include REGISTER_TASK
 
-//#define TEST3
+//#define TEST6
 
 #ifdef TEST1
   // test led output
@@ -493,8 +493,8 @@ __attribute__ ((OS_main)) int main(void) {
   initNoonSensor();
   initClockPaused();
   initTimerSignal();
-  initHBridgeOutDuration_units();
   initHBridge();
+  initCheckBatteryPin();
   
   for (;;) {
     execTasks<uint16_t, TASK_LIST>();
@@ -518,6 +518,31 @@ __attribute__ ((OS_main)) int main(void) {
 #include REGISTER_IRQS
 
 #elif defined TEST6
+__attribute__ ((OS_main)) int main(void) {
+  
+  set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+  
+  // start with all tasks stopped
+  stopAllTasks();
+  
+  displayedTime = 12 * 60 - 2;
+  time = displayedTime;
+  
+  initNoonSensor();
+  initClockPaused();
+  initTimerSignal();
+  initHBridge();
+  initCheckBatteryPin();
+  
+  for (;;) {
+    startTask(Task::CheckBatteries);
+    execTasks<uint16_t, TASK_LIST>();
+  }
+  return 0;
+}
+#define USE_ONLY_DEFINED_IRQS
+#include REGISTER_IRQS
+
 #else
 
 
@@ -534,8 +559,8 @@ __attribute__ ((OS_main)) int main(void) {
   initNoonSensor();
   initClockPaused();
   initTimerSignal();
-  initHBridgeOutDuration_units();
   initHBridge();
+  initCheckBatteryPin();
   
   for (;;) {
     execTasks<uint16_t, TASK_LIST>();
