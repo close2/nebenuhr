@@ -24,7 +24,7 @@ constexpr uint8_t voltsToUnits(T volts) {
 
 // 256 * minBatt1Voltage / 1.1 (1.1 ref voltage)
 const auto batt1Min = voltsToUnits(0.8); // should be 186 units
-const auto batt2Min = voltsToUnits(0.8); // should be 186 units
+const auto batt2Min = voltsToUnits(0.6);
 const auto batt3Min = voltsToUnits(0.8); // should be 186 units
 
 
@@ -400,7 +400,7 @@ struct NEW_TASK {
 };
 #include REGISTER_TASK
 
-//#define TEST6
+//#define TEST7
 
 #ifdef TEST1
   // test led output
@@ -540,6 +540,46 @@ __attribute__ ((OS_main)) int main(void) {
   }
   return 0;
 }
+#define USE_ONLY_DEFINED_IRQS
+#include REGISTER_IRQS
+
+#elif defined TEST7
+
+__attribute__ ((OS_main)) int main(void) {
+  
+  set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+  
+  // start with all tasks stopped
+  stopAllTasks();
+  
+  displayedTime = 12 * 60 + 2;
+  time = displayedTime;
+  
+  initNoonSensor();
+  initClockPaused();
+  initTimerSignal();
+  initHBridge();
+  initCheckBatteryPin();
+  
+  startTask(Task::IncMinute);
+  for (;;) {
+    execTasks<uint16_t, TASK_LIST>();
+    
+    // if all tasks are done
+    // power down
+    // go to sleep without race conditions...
+    cli();
+    if (isAllTasksStopped()) {
+      sleep_enable();
+      sei();
+      sleep_cpu();
+      sleep_disable();
+    }
+    sei();
+  }
+  return 0;
+}
+
 #define USE_ONLY_DEFINED_IRQS
 #include REGISTER_IRQS
 
