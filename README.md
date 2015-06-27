@@ -42,7 +42,7 @@ Only a low can wake an atmega when powered off,
 And again the same for B.  Note that both A and B finally connect to the same Atmega pin.
 (One resistor to VCC would be enough).
 
-When A goes high (1.5V) the transistor pull the Atmega pin to ground, waking the Atmega.
+When A goes high (1.5V) the transistor pulls the Atmega pin to ground, waking the Atmega.
 
 
 I considered connecting Pin D directly to the atmega and switching between HiZ and low,
